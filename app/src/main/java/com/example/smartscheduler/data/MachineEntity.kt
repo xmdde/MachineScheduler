@@ -9,5 +9,6 @@ data class MachineEntity(
     val name: String,
     val powerConsumptionKw: Double,
     val durationHours: Int,
-    val priority: Int
+    val priority: Int,
+    val isActiveToday: Boolean = false
 )

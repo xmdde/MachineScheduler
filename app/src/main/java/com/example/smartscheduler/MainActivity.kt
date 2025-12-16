@@ -3,6 +3,7 @@ package com.example.smartscheduler
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,6 +25,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.smartscheduler.data.*
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,7 +77,7 @@ fun AppNavigation(repository: MachineRepository) {
             startDestination = Screen.MachineList.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Dashboard.route) { DashboardScreen() }
+            composable(Screen.Dashboard.route) { DashboardScreen(repository) }
             composable(Screen.MachineList.route) { MainScreen(repository) }
             composable(Screen.Scheduler.route) { SchedulerScreen(repository) }
         }
@@ -146,17 +150,17 @@ fun MainScreen(repository: MachineRepository) {
 }
 
 @Composable
-fun DashboardScreen() { Box(Modifier.fillMaxSize()) { Text("Ekran Główny", modifier = Modifier.padding(16.dp)) } }
-
-@Composable
 fun SchedulerScreen(repository: MachineRepository) {
     val machines by repository.allMachines.collectAsState(initial = emptyList())
+    val activeMachines = machines.filter { it.isActiveToday }
     val prices = MockEnergyApi.getPrices()
 
-    val totalCost = machines.sumOf { machine ->
+    val totalCost = activeMachines.sumOf { machine ->
         val startTime = calculateOptimalStartTime(machine.durationHours, prices)
-        prices.subList(startTime, startTime + machine.durationHours)
-            .sumOf { it.price * machine.powerConsumptionKw }
+        (0 until machine.durationHours).sumOf { offset ->
+            val currentHour = (startTime + offset) % 24
+            prices[currentHour].price * machine.powerConsumptionKw
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -174,18 +178,20 @@ fun SchedulerScreen(repository: MachineRepository) {
             }
         }
 
-        if (machines.isEmpty()) {
+        if (activeMachines.isEmpty()) {
             Text("Brak maszyn w bazie. Dodaj je w zakładce Maszyny.")
         } else {
             Text("Szczegóły maszyn:", style = MaterialTheme.typography.titleMedium)
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(machines) { machine ->
+                items(activeMachines) { machine ->
                     val startTime = calculateOptimalStartTime(machine.durationHours, prices)
                     val endTime = (startTime + machine.durationHours) % 24
 
-                    val cost = prices.subList(startTime, startTime + machine.durationHours)
-                        .sumOf { it.price * machine.powerConsumptionKw }
+                    val cost = (0 until machine.durationHours).sumOf { offset ->
+                        val hour = (startTime + offset) % 24
+                        prices[hour].price * machine.powerConsumptionKw
+                    }
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -218,6 +224,95 @@ fun SchedulerScreen(repository: MachineRepository) {
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardScreen(repository: MachineRepository) {
+    val scope = rememberCoroutineScope()
+
+    val machines by repository.allMachines.collectAsState(initial = emptyList())
+    val prices = MockEnergyApi.getPrices()
+    val maxPrice = prices.maxOf { it.price }
+
+    val currentDate = LocalDate.now().format(
+        DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("pl", "PL"))
+    )
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Centrum Dowodzenia", style = MaterialTheme.typography.headlineSmall)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Wykres cen
+        Text("Ceny energii na $currentDate", style = MaterialTheme.typography.titleMedium)
+        Card(
+            modifier = Modifier.fillMaxWidth().height(120.dp).padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                prices.forEach { energy ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight((energy.price / maxPrice).toFloat())
+                            .background(
+                                if (energy.price > 0.8) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.primary,
+                                shape = MaterialTheme.shapes.extraSmall
+                            )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Checklista maszyn na dziś
+        Text("Plan zadań na dziś (wybierz do grafiku):", style = MaterialTheme.typography.titleMedium)
+
+        if (machines.isEmpty()) {
+            Text("Brak maszyn w bazie.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 16.dp))
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(machines) { machine ->
+                    // Używamy bezpośrednio stanu z bazy danych (machine.isActiveToday)
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                text = machine.name,
+                                style = if (machine.isActiveToday)
+                                    MaterialTheme.typography.bodyLarge.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+                                else MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        supportingContent = {
+                            val bestStart = calculateOptimalStartTime(machine.durationHours, prices)
+                            Text("Sugerowany start: $bestStart:00")
+                        },
+                        leadingContent = {
+                            Checkbox(
+                                checked = machine.isActiveToday,
+                                onCheckedChange = { checked ->
+                                    // Używamy scope zdefiniowanego na górze ekranu
+                                    scope.launch {
+                                        repository.addMachine(machine.copy(isActiveToday = checked))
+                                    }
+                                }
+                            )
+                        },
+                        colors = ListItemDefaults.colors(
+                            containerColor = if (machine.isActiveToday)
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            else MaterialTheme.colorScheme.surface
+                        )
+                    )
+                    HorizontalDivider(thickness = 0.5.dp)
                 }
             }
         }
