@@ -8,4 +8,8 @@ class MachineRepository(private val machineDao: MachineDao) {
     suspend fun addMachine(machine: MachineEntity) {
         machineDao.insertMachine(machine)
     }
+
+    suspend fun deleteMachine(machine: MachineEntity) {
+        machineDao.deleteMachine(machine)
+    }
 }

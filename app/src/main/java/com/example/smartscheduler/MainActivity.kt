@@ -8,8 +8,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -25,7 +29,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Inicjalizacja bazy i repozytorium
         val database = AppDatabase.getDatabase(this)
         val repository = MachineRepository(database.machineDao())
 
@@ -46,19 +49,19 @@ fun AppNavigation(repository: MachineRepository) {
             NavigationBar {
                 NavigationBarItem(
                     selected = false,
-                    onClick = { navController.navigate("dashboard") },
+                    onClick = { navController.navigate(Screen.Dashboard.route) },
                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
                     label = { Text("Główna") }
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { navController.navigate("machines") },
+                    onClick = { navController.navigate(Screen.MachineList.route) },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text("Maszyny") }
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { navController.navigate("scheduler") },
+                    onClick = { navController.navigate(Screen.Scheduler.route) },
                     icon = { Icon(Icons.Default.DateRange, contentDescription = null) },
                     label = { Text("Grafik") }
                 )
@@ -67,12 +70,12 @@ fun AppNavigation(repository: MachineRepository) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "machines",
+            startDestination = Screen.MachineList.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("dashboard") { DashboardScreen() }
-            composable("machines") { MainScreen(repository) }
-            composable("scheduler") { SchedulerScreen(repository) }
+            composable(Screen.Dashboard.route) { DashboardScreen() }
+            composable(Screen.MachineList.route) { MainScreen(repository) }
+            composable(Screen.Scheduler.route) { SchedulerScreen(repository) }
         }
     }
 }
@@ -85,9 +88,10 @@ fun MainScreen(repository: MachineRepository) {
     var name by remember { mutableStateOf("") }
     var power by remember { mutableStateOf("") }
     var duration by remember { mutableStateOf("") }
+    var editingMachine by remember { mutableStateOf<MachineEntity?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Zarządzanie Maszynami", style = MaterialTheme.typography.headlineSmall)
+        Text(if (editingMachine == null) "Dodaj Maszynę" else "Edytuj Maszynę", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nazwa") }, modifier = Modifier.fillMaxWidth())
@@ -97,28 +101,43 @@ fun MainScreen(repository: MachineRepository) {
         Button(
             onClick = {
                 scope.launch {
-                    if (name.isNotBlank()) {
-                        repository.addMachine(MachineEntity(
-                            name = name,
-                            powerConsumptionKw = power.toDoubleOrNull() ?: 0.0,
-                            durationHours = duration.toIntOrNull() ?: 1,
-                            priority = 1
-                        ))
-                        name = ""; power = ""; duration = ""
-                    }
+                    val machineToSave = MachineEntity(
+                        id = editingMachine?.id ?: 0, // Jeśli edytujemy, zachowujemy to samo ID
+                        name = name,
+                        powerConsumptionKw = power.toDoubleOrNull() ?: 0.0,
+                        durationHours = duration.toIntOrNull() ?: 1,
+                        priority = 1
+                    )
+                    repository.addMachine(machineToSave)
+                    name = ""; power = ""; duration = ""; editingMachine = null
                 }
             },
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
         ) {
-            Text("Dodaj Maszynę")
+            Text(if (editingMachine == null) "Dodaj" else "Zapisz zmiany")
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn {
             items(machines) { machine ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(text = machine.name, fontWeight = FontWeight.Bold)
-                        Text(text = "${machine.powerConsumptionKw} kW | ${machine.durationHours}h")
+                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = machine.name, fontWeight = FontWeight.Bold)
+                            Text(text = "${machine.powerConsumptionKw} kW | ${machine.durationHours}h")
+                        }
+
+                        IconButton(onClick = {
+                            editingMachine = machine
+                            name = machine.name
+                            power = machine.powerConsumptionKw.toString()
+                            duration = machine.durationHours.toString()
+                        }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edytuj")
+                        }
+
+                        IconButton(onClick = { scope.launch { repository.deleteMachine(machine) } }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Usuń", tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
@@ -130,4 +149,77 @@ fun MainScreen(repository: MachineRepository) {
 fun DashboardScreen() { Box(Modifier.fillMaxSize()) { Text("Ekran Główny", modifier = Modifier.padding(16.dp)) } }
 
 @Composable
-fun SchedulerScreen(repository: MachineRepository) { Box(Modifier.fillMaxSize()) { Text("Ekran Grafiku", modifier = Modifier.padding(16.dp)) } }
+fun SchedulerScreen(repository: MachineRepository) {
+    val machines by repository.allMachines.collectAsState(initial = emptyList())
+    val prices = MockEnergyApi.getPrices()
+
+    val totalCost = machines.sumOf { machine ->
+        val startTime = calculateOptimalStartTime(machine.durationHours, prices)
+        prices.subList(startTime, startTime + machine.durationHours)
+            .sumOf { it.price * machine.powerConsumptionKw }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Harmonogram Pracy", style = MaterialTheme.typography.headlineSmall)
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Całkowity koszt energii", style = MaterialTheme.typography.labelLarge)
+                Text("${String.format("%.2f", totalCost)} PLN",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold)
+            }
+        }
+
+        if (machines.isEmpty()) {
+            Text("Brak maszyn w bazie. Dodaj je w zakładce Maszyny.")
+        } else {
+            Text("Szczegóły maszyn:", style = MaterialTheme.typography.titleMedium)
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(machines) { machine ->
+                    val startTime = calculateOptimalStartTime(machine.durationHours, prices)
+                    val endTime = (startTime + machine.durationHours) % 24
+
+                    val cost = prices.subList(startTime, startTime + machine.durationHours)
+                        .sumOf { it.price * machine.powerConsumptionKw }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(machine.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text("${String.format("%.2f", cost)} PLN", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 0.5.dp)
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Sugerowany czas pracy: ", style = MaterialTheme.typography.bodyMedium)
+                                Text("$startTime:00 - $endTime:00", fontWeight = FontWeight.Bold)
+                            }
+
+                            Text(
+                                "Zużycie: ${machine.powerConsumptionKw}kW x ${machine.durationHours}h",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

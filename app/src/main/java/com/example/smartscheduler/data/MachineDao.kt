@@ -10,4 +10,7 @@ interface MachineDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMachine(machine: MachineEntity)
+
+    @Delete
+    suspend fun deleteMachine(machine: MachineEntity)
 }
