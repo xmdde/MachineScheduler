@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
@@ -18,12 +19,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.smartscheduler.data.*
+import com.example.smartscheduler.ui.theme.SmartSchedulerTheme
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -37,8 +41,13 @@ class MainActivity : ComponentActivity() {
         val repository = MachineRepository(database.machineDao())
 
         setContent {
-            MaterialTheme {
-                AppNavigation(repository)
+            SmartSchedulerTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    AppNavigation(repository)
+                }
             }
         }
     }
@@ -106,7 +115,7 @@ fun MainScreen(repository: MachineRepository) {
             onClick = {
                 scope.launch {
                     val machineToSave = MachineEntity(
-                        id = editingMachine?.id ?: 0, // Jeśli edytujemy, zachowujemy to samo ID
+                        id = editingMachine?.id ?: 0,
                         name = name,
                         powerConsumptionKw = power.toDoubleOrNull() ?: 0.0,
                         durationHours = duration.toIntOrNull() ?: 1,
@@ -171,7 +180,7 @@ fun SchedulerScreen(repository: MachineRepository) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Całkowity koszt energii", style = MaterialTheme.typography.labelLarge)
+                Text("Przewidywany całkowity koszt energii", style = MaterialTheme.typography.labelLarge)
                 Text("${String.format("%.2f", totalCost)} PLN",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold)
@@ -179,7 +188,7 @@ fun SchedulerScreen(repository: MachineRepository) {
         }
 
         if (activeMachines.isEmpty()) {
-            Text("Brak maszyn w bazie. Dodaj je w zakładce Maszyny.")
+            Text("Nie wybrano aktywnych maszyn na dziś.")
         } else {
             Text("Szczegóły maszyn:", style = MaterialTheme.typography.titleMedium)
 
@@ -246,8 +255,13 @@ fun DashboardScreen(repository: MachineRepository) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Wykres cen
-        Text("Ceny energii na $currentDate", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "CENY ENERGII: $currentDate",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp
+        )
         Card(
             modifier = Modifier.fillMaxWidth().height(120.dp).padding(vertical = 8.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -257,14 +271,16 @@ fun DashboardScreen(repository: MachineRepository) {
                 verticalAlignment = Alignment.Bottom
             ) {
                 prices.forEach { energy ->
+                    val barHeight = (energy.price / maxPrice).toFloat()
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight((energy.price / maxPrice).toFloat())
+                            .fillMaxHeight(barHeight)
+                            .padding(horizontal = 1.dp)
                             .background(
-                                if (energy.price > 0.8) MaterialTheme.colorScheme.error
+                                color = if (energy.price > 0.9) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.primary,
-                                shape = MaterialTheme.shapes.extraSmall
+                                shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
                             )
                     )
                 }
@@ -273,7 +289,6 @@ fun DashboardScreen(repository: MachineRepository) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Checklista maszyn na dziś
         Text("Plan zadań na dziś (wybierz do grafiku):", style = MaterialTheme.typography.titleMedium)
 
         if (machines.isEmpty()) {
@@ -281,25 +296,12 @@ fun DashboardScreen(repository: MachineRepository) {
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 items(machines) { machine ->
-                    // Używamy bezpośrednio stanu z bazy danych (machine.isActiveToday)
                     ListItem(
-                        headlineContent = {
-                            Text(
-                                text = machine.name,
-                                style = if (machine.isActiveToday)
-                                    MaterialTheme.typography.bodyLarge.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
-                                else MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        supportingContent = {
-                            val bestStart = calculateOptimalStartTime(machine.durationHours, prices)
-                            Text("Sugerowany start: $bestStart:00")
-                        },
+                        headlineContent = { Text(machine.name, fontWeight = FontWeight.SemiBold) },
                         leadingContent = {
                             Checkbox(
                                 checked = machine.isActiveToday,
                                 onCheckedChange = { checked ->
-                                    // Używamy scope zdefiniowanego na górze ekranu
                                     scope.launch {
                                         repository.addMachine(machine.copy(isActiveToday = checked))
                                     }
@@ -308,11 +310,10 @@ fun DashboardScreen(repository: MachineRepository) {
                         },
                         colors = ListItemDefaults.colors(
                             containerColor = if (machine.isActiveToday)
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            else MaterialTheme.colorScheme.surface
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                            else Color.Transparent
                         )
                     )
-                    HorizontalDivider(thickness = 0.5.dp)
                 }
             }
         }
