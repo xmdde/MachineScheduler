@@ -16,3 +16,14 @@ object MockEnergyApi {
         }
     }
 }
+
+data class EnergyPriceDto(
+    val hour: Int,
+    val price: Double // cena w PLN/MWh
+)
+
+data class MachinePlanDto(
+    val id: Int,
+    val name: String,
+    val planned_hour: Int
+)

@@ -1,5 +1,6 @@
 package com.example.smartscheduler.ui.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +16,7 @@ import com.example.smartscheduler.data.MockEnergyApi
 import com.example.smartscheduler.calculateOptimalStartTime
 import com.example.smartscheduler.ui.MachineViewModel
 
+@SuppressLint("DefaultLocale")
 @Composable
 fun SchedulerScreen(viewModel: MachineViewModel) {
     val machines by viewModel.allMachines.collectAsState(initial = emptyList())

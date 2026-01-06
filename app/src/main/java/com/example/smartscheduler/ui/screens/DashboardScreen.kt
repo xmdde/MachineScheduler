@@ -35,7 +35,8 @@ fun DashboardScreen(viewModel: MachineViewModel) {
             Row(modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
                 prices.forEach { energy ->
                     val barHeight = (energy.price / maxPrice).toFloat()
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight(barHeight).padding(horizontal = 1.dp).background(color = if (energy.price > 0.9) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight(barHeight).padding(horizontal = 1.dp).background(color = if (energy.price > 0.9) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
                 }
             }
         }
