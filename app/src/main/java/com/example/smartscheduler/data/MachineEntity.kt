@@ -10,5 +10,6 @@ data class MachineEntity(
     val powerConsumptionKw: Double,
     val durationHours: Int,
     val priority: Int,
-    val isActiveToday: Boolean = false
+    val isActiveToday: Boolean = false,
+    val plannedHour: Int = 0
 )

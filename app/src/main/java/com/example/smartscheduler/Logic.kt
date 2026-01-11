@@ -1,9 +1,9 @@
 package com.example.smartscheduler
 
-import com.example.smartscheduler.data.EnergyPrice
+import com.example.smartscheduler.data.EnergyPriceDto
 
-fun calculateOptimalStartTime(duration: Int, prices: List<EnergyPrice>): Int {
-    if (duration <= 0 || duration >= 24) return 0
+fun calculateOptimalStartTime(duration: Int, prices: List<EnergyPriceDto>): Int {
+    if (duration <= 0 || duration > prices.size) return 0
 
     val bestWindow = prices.windowed(size = duration, step = 1)
         .minByOrNull { window -> window.sumOf { it.price } }

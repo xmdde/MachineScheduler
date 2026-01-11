@@ -12,4 +12,8 @@ class MachineRepository(private val machineDao: MachineDao) {
     suspend fun deleteMachine(machine: MachineEntity) {
         machineDao.deleteMachine(machine)
     }
+
+    suspend fun update(machine: MachineEntity) {
+        machineDao.update(machine)
+    }
 }

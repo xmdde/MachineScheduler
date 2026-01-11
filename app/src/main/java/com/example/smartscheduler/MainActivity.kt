@@ -12,6 +12,7 @@ import com.example.smartscheduler.data.*
 import com.example.smartscheduler.ui.AppNavigation
 import com.example.smartscheduler.ui.MachineViewModel
 import com.example.smartscheduler.ui.theme.SmartSchedulerTheme
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,6 +24,9 @@ class MainActivity : ComponentActivity() {
         val viewModel: MachineViewModel by viewModels {
             MachineViewModel.Factory(repository)
         }
+
+        val today = LocalDate.now().toString()
+        viewModel.fetchEnergyPrices(today)
 
         setContent {
             SmartSchedulerTheme {
