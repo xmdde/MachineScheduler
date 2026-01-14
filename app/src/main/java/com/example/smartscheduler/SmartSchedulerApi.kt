@@ -7,12 +7,11 @@ import retrofit2.http.*
 import retrofit2.converter.gson.GsonConverterFactory
 
 interface SmartSchedulerApi {
-
     @GET("energy/prices")
     suspend fun getPrices(@Query("date") date: String): List<EnergyPriceDto>
 
-    @POST("energy/schedule")
-    suspend fun sendSchedule(@Body schedule: List<MachinePlanDto>): Response<Unit>
+    @POST("machine/schedule")
+    suspend fun sendSchedule(@Body schedule: MachinePlanDto): Response<Unit>
 
     companion object {
         private const val BASE_URL = "http://10.0.2.2:8000/"

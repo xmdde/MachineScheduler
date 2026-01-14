@@ -4,12 +4,14 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smartscheduler.ui.MachineViewModel
@@ -20,6 +22,7 @@ fun SchedulerScreen(viewModel: MachineViewModel) {
     val machines by viewModel.allMachines.collectAsState(initial = emptyList())
     val activeMachines = machines.filter { it.isActiveToday }
     val prices = viewModel.energyPrices
+    val context = LocalContext.current
 
     // Używamy ceny w PLN/kWh
     val totalCost = activeMachines.sumOf { machine ->
@@ -27,7 +30,7 @@ fun SchedulerScreen(viewModel: MachineViewModel) {
         (0 until machine.durationHours).sumOf { offset ->
             val hourData = prices.find { it.hour == (startTime + offset) % 24 }
             val priceKwh = (hourData?.price ?: 0.0) / 1000.0
-            (priceKwh * machine.powerConsumptionKw).toDouble()
+            (priceKwh * machine.powerConsumptionKw)
         }
     }
 
@@ -90,6 +93,26 @@ fun SchedulerScreen(viewModel: MachineViewModel) {
                     }
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = {
+                viewModel.sendPlanToServer()
+                // Wyświetlenie powiadomienia Toast
+                android.widget.Toast.makeText(
+                    context,
+                    "Harmonogram został wysłany.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("WYŚLIJ PLAN DO PRODUKCJI")
         }
     }
 }

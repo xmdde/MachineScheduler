@@ -12,7 +12,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smartscheduler.data.MockEnergyApi
 import com.example.smartscheduler.ui.MachineViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -31,37 +30,70 @@ fun DashboardScreen(viewModel: MachineViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Centrum Dowodzenia", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(16.dp))
+
         Text("CENY ENERGII: $currentDate", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
 
-        // Wykres
+        val lowestPrice = prices.minOfOrNull { it.price } ?: 0.0
+
+        // Wykres cen energii w danym dniu.
         Card(
-            modifier = Modifier.fillMaxWidth().height(120.dp).padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 8.dp), // Zwiększyłem wysokość na etykiety
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
-            if (viewModel.isLoadingPrices) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                }
-            } else if (prices.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Brak danych z serwera", style = MaterialTheme.typography.bodySmall)
-                }
-            } else {
-                Row(modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                Row(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom
+                ) {
                     prices.forEach { energy ->
                         val barHeight = (energy.price / maxPrice).toFloat()
-                        val color = if (energy.price > 600.0) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.primary
 
-                        Box(modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(barHeight.coerceIn(0.05f, 1f))
-                            .padding(horizontal = 1.dp)
-                            .background(
-                                color = color,
-                                shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
+                        val barColor = when {
+                            energy.price == lowestPrice -> Color(0xFF4CAF50)
+                            energy.price > 600.0 -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            verticalArrangement = Arrangement.Bottom,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(barHeight.coerceIn(0.05f, 1f))
+                                    .padding(horizontal = 2.dp)
+                                    .background(
+                                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            colors = listOf(barColor, barColor.copy(alpha = 0.6f))
+                                        ),
+                                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
+                                    )
                             )
-                        )
+                        }
+                    }
+                }
+
+                // Oś godzinowa
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    for (h in 0..23) {
+                        if (h % 3 == 0) {
+                            Text(
+                                text = "$h",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Start,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import com.example.smartscheduler.calculateOptimalStartTime
+import com.example.smartscheduler.data.MachinePlanDto
 import kotlinx.coroutines.flow.first
 
 class MachineViewModel(private val repository: MachineRepository) : ViewModel() {
@@ -80,6 +81,28 @@ class MachineViewModel(private val repository: MachineRepository) : ViewModel() 
                     val updatedMachine = machine.copy(plannedHour = bestStartHour)
                     repository.update(updatedMachine)
                 }
+            }
+        }
+    }
+
+    fun sendPlanToServer() {
+        viewModelScope.launch {
+            try {
+                val machines = repository.allMachines.first().filter { it.isActiveToday }
+
+                machines.forEach { machine ->
+                    val request = MachinePlanDto(
+                        machineId = machine.id,
+                        plannedHour = machine.plannedHour
+                    )
+                    val response = api.sendSchedule(request)
+
+                    if (response.isSuccessful) {
+                        Log.d("POST_API", "Wysłano harmonogram dla: ${machine.name}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("POST_API", "Błąd wysyłania: ${e.message}")
             }
         }
     }
