@@ -100,7 +100,6 @@ fun SchedulerScreen(viewModel: MachineViewModel) {
         Button(
             onClick = {
                 viewModel.sendPlanToServer()
-                // Wyświetlenie powiadomienia Toast
                 android.widget.Toast.makeText(
                     context,
                     "Harmonogram został wysłany.",

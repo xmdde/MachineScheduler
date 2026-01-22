@@ -37,7 +37,7 @@ fun DashboardScreen(viewModel: MachineViewModel) {
 
         // Wykres cen energii w danym dniu.
         Card(
-            modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 8.dp), // Zwiększyłem wysokość na etykiety
+            modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 8.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
